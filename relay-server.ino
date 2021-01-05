@@ -1,23 +1,16 @@
-/*********
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com/esp8266-nodemcu-websocket-server-arduino/
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-*********/
 
 // Import required libraries
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-
 #include <ESP8266mDNS.h>
 
 // Replace with your network credentials
-const char* ssid = "Milenko3617";
-const char* password = "Kara3617!";
+const char* ssid = "SSID";
+const char* password = "PASSWORD";
 
 bool relayState = 0;
-const int relayPin = 5;
+const int relayPin = 5; //gpio 5 is digital pin 1, labelled D1
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -239,6 +232,7 @@ void setup(){
 
   // Start server
   server.begin();
+  // Start mDNS service
   MDNS.addService("http", "tcp", 80);
 }
 
