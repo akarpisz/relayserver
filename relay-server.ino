@@ -1,19 +1,23 @@
+/*********
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp8266-nodemcu-websocket-server-arduino/
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+*********/
+
+// Import required libraries
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
-#include <ESP8266mDNS.h> 
-#define HOSTNAME "relay"
+#include <ESP8266mDNS.h>
 
-//const char* ssid = "REPLACE_WITH_YOUR_SSID";
-//const char* password = "REPLACE_WITH_YOUR_PASSWORD";
-//
-
-
-String hostname(HOSTNAME);
+// Replace with your network credentials
+const char* ssid = "Milenko3617";
+const char* password = "Kara3617!";
 
 bool relayState = 0;
-const int relayPin = 0; // need relay pin
+const int relayPin = 5;
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -84,17 +88,17 @@ const char index_html[] PROGMEM = R"rawliteral(
      font-weight: bold;
    }
   </style>
-<title>ESP Web Server</title>
+<title>ESP Relay Server</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
 </head>
 <body>
   <div class="topnav">
-    <h1>ESP WebSocket Server</h1>
+    <h2>ESP Relay Server</h2>
   </div>
   <div class="content">
     <div class="card">
-      <h2>Output - GPIO 2</h2>
+      <h2>Relay</h2>
       <p class="state">State: <span id="state">%STATE%</span></p>
       <p><button id="button" class="button">ON/OFF</button></p>
     </div>
@@ -103,10 +107,10 @@ const char index_html[] PROGMEM = R"rawliteral(
   var gateway = `ws://${window.location.hostname}/ws`;
   var websocket;
   
-  window.addEventListener('load', onLoad);
+  window.addEventListener("load", onLoad);
   
   function initWebSocket() {
-    console.log('Trying to open a WebSocket connection...');
+    console.log("Trying to open a WebSocket connection...");
     websocket = new WebSocket(gateway);
     websocket.onopen    = onOpen;
     websocket.onclose   = onClose;
@@ -114,11 +118,11 @@ const char index_html[] PROGMEM = R"rawliteral(
   }
   
   function onOpen(event) {
-    console.log('Connection opened');
+    console.log("Connection opened");
   }
   
   function onClose(event) {
-    console.log('Connection closed');
+    console.log("Connection closed");
     setTimeout(initWebSocket, 2000);
   }
   
@@ -130,7 +134,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     else{
       state = "OFF";
     }
-    document.getElementById('state').innerHTML = state;
+    document.getElementById("state").innerHTML = state;
   }
   
   function onLoad(event) {
@@ -139,11 +143,11 @@ const char index_html[] PROGMEM = R"rawliteral(
   }
   
   function initButton() {
-    document.getElementById('button').addEventListener('click', toggle);
+    document.getElementById("button").addEventListener("click", toggle);
   }
   
   function toggle(){
-    websocket.send('toggle');
+    websocket.send("toggle");
   }
 </script>
 </body>
@@ -151,7 +155,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 void notifyClients() {
-  ws.textAll(String(relayPin));
+  ws.textAll(String(relayState));
 }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
@@ -169,10 +173,10 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
              void *arg, uint8_t *data, size_t len) {
     switch (type) {
       case WS_EVT_CONNECT:
-        Serial.printf("WS client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+        Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         break;
       case WS_EVT_DISCONNECT:
-        Serial.printf("WS client #%u disconnected\n", client->id());
+        Serial.printf("WebSocket client #%u disconnected\n", client->id());
         break;
       case WS_EVT_DATA:
         handleWebSocketMessage(arg, data, len);
@@ -181,6 +185,11 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
       case WS_EVT_ERROR:
         break;
   }
+}
+
+void initWebSocket() {
+  ws.onEvent(onEvent);
+  server.addHandler(&ws);
 }
 
 String processor(const String& var){
@@ -195,33 +204,46 @@ String processor(const String& var){
   }
 }
 
-void initWebSocket() {
-  ws.onEvent(onEvent);
-  server.addHandler(&ws);
-}
+void setup(){
+  // Serial port for debugging purposes
+  Serial.begin(115200);
 
-void setup() {
-  // put your setup code here, to run once:
-  WiFi.hostname(hostname);
-  MDNS.begin(hostname));
-  WiFi.begin(ssid, password);
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, LOW);
   
+  // Connect to Wi-Fi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    Serial.println("Connecting...");
+    Serial.println("Connecting to WiFi..");
   }
 
-  if (MDNS.begin(hostname)) {
-  Serial.println(“MDNS started”);
+  // Print ESP Local IP Address
+  Serial.println(WiFi.localIP());
+
+  if (!MDNS.begin("relay")) {
+    Serial.println("Error setting up MDNS responder!");
+    while (1) {
+      delay(1000);
+    }
   }
-  else if (!MDNS.begin(hostname)) {
-  Serial.println("MDNS failed!");  
-  }
-  
+  Serial.println("mDNS responder started");
+
+  initWebSocket();
+
+  // Route for root / web page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/html", index_html, processor);
+  });
+
+  // Start server
+  server.begin();
+  MDNS.addService("http", "tcp", 80);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  MDNS.update();
   ws.cleanupClients();
   digitalWrite(relayPin, relayState);
 }
